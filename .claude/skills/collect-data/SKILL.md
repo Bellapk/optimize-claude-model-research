@@ -1,8 +1,7 @@
 ---
 name: collect-data
-description: Collect and verify research data, primary sources, literature, statistics, tables, metadata, citations, and supporting evidence without producing final analysis or conclusions.
+description: Automatically collect and verify research data, primary sources, literature, statistics, tables, metadata, citations, and supporting evidence in an isolated Opus collector. Use whenever a request requires web or literature search, long-document reading, source verification, quantitative evidence, citation gathering, or a new factual measure. Do not use for file editing, plotting, implementation, final analysis, or conclusions.
 argument-hint: "[self-contained research question or evidence requirement]"
-disable-model-invocation: true
 model: claude-opus-4-8
 effort: low
 context: fork

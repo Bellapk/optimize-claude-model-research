@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Verify Claude Code model routing from local JSONL transcripts.
+"""Verify Claude Code model routing from local JSONL metadata.
 
-This script reads metadata only and prints model names, message counts, agent
-types, descriptions, and timestamps. It never prints prompts or responses.
+The verifier prints model names, message counts, agent types, descriptions,
+timestamps, and transcript paths. It never prints prompts or responses.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import json
 import re
 import sys
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -33,9 +34,27 @@ def read_records(path: Path) -> Iterable[dict[str, Any]]:
                 yield record
 
 
-def message_models(path: Path) -> Counter[str]:
+def parse_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def record_is_in_range(record: dict[str, Any], since: datetime | None) -> bool:
+    if since is None:
+        return True
+    timestamp = parse_timestamp(str(record.get("timestamp", "")))
+    return timestamp is not None and timestamp >= since
+
+
+def message_models(path: Path, since: datetime | None = None) -> Counter[str]:
     models: Counter[str] = Counter()
     for record in read_records(path):
+        if not record_is_in_range(record, since):
+            continue
         message = record.get("message")
         if isinstance(message, dict):
             model = message.get("model")
@@ -44,9 +63,14 @@ def message_models(path: Path) -> Counter[str]:
     return models
 
 
-def agent_calls(path: Path) -> list[dict[str, str]]:
+def agent_calls(
+    path: Path,
+    since: datetime | None = None,
+) -> list[dict[str, str]]:
     calls: list[dict[str, str]] = []
     for record in read_records(path):
+        if not record_is_in_range(record, since):
+            continue
         message = record.get("message")
         if not isinstance(message, dict):
             continue
@@ -74,7 +98,7 @@ def agent_calls(path: Path) -> list[dict[str, str]]:
 
 
 def nested_strings(value: Any) -> Iterable[str]:
-    """Yield string values without exposing or retaining their surrounding content."""
+    """Yield strings without printing or retaining their surrounding content."""
     if isinstance(value, str):
         yield value
     elif isinstance(value, dict):
@@ -90,7 +114,7 @@ def agent_result_links(
     calls: list[dict[str, str]],
     transcript_ids: set[str],
 ) -> dict[str, str]:
-    """Map Agent tool-use IDs to transcript IDs found in their tool results."""
+    """Map Agent tool-use IDs to transcript IDs found in tool results."""
     agent_call_ids = {call["id"] for call in calls if call["id"]}
     links: dict[str, str] = {}
     for record in read_records(path):
@@ -128,13 +152,32 @@ def latest_main_transcript(claude_home: Path, project: Path) -> Path:
     return max(candidates, key=lambda item: item.stat().st_mtime)
 
 
+def subagent_transcripts(main_path: Path) -> list[Path]:
+    folder = main_path.with_suffix("") / "subagents"
+    if not folder.is_dir():
+        return []
+    return sorted(
+        folder.rglob("agent-*.jsonl"),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
+
+
 def format_models(models: Counter[str]) -> str:
-    return ", ".join(f"{model} ({count} messages)" for model, count in models.items()) or "none"
+    return ", ".join(
+        f"{model} ({count} messages)" for model, count in models.items()
+    ) or "none"
+
+
+def model_matches(models: Counter[str], selector: str) -> bool:
+    """Match a full ID or a Claude alias such as sonnet against actual IDs."""
+    wanted = selector.lower()
+    return any(wanted == model.lower() or wanted in model.lower() for model in models)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Verify that Claude Code used different models for reasoning and collection."
+        description="Verify capability-based Claude Code model routing."
     )
     parser.add_argument("--project", type=Path, default=Path.cwd())
     parser.add_argument(
@@ -144,7 +187,18 @@ def main() -> int:
     )
     parser.add_argument("--main-model", default="claude-fable-5")
     parser.add_argument("--collector-model", default="claude-opus-4-8")
+    parser.add_argument("--analyst-model", default="claude-opus-4-8")
+    parser.add_argument("--worker-model", default="sonnet")
+    parser.add_argument(
+        "--since",
+        help="Only inspect records at or after this ISO-8601 timestamp.",
+    )
     args = parser.parse_args()
+
+    since = parse_timestamp(args.since) if args.since else None
+    if args.since and since is None:
+        print(f"Invalid --since timestamp: {args.since}", file=sys.stderr)
+        return 2
 
     try:
         main_path = latest_main_transcript(args.claude_home, args.project)
@@ -152,63 +206,102 @@ def main() -> int:
         print(error, file=sys.stderr)
         return 1
 
-    main_models = message_models(main_path)
-    calls = agent_calls(main_path)
-    session_subagents = main_path.with_suffix("") / "subagents"
-    subagent_paths = sorted(
-        session_subagents.glob("agent-*.jsonl"),
-        key=lambda item: item.stat().st_mtime,
-        reverse=True,
-    )
-    subagent_models = [(path, message_models(path)) for path in subagent_paths]
+    main_models = message_models(main_path, since)
+    calls = agent_calls(main_path, since)
+    paths = subagent_transcripts(main_path)
+    subagent_models = [
+        (path, models)
+        for path in paths
+        if (models := message_models(path, since))
+    ]
     transcripts_by_id = {
         path.stem.removeprefix("agent-"): (path, models)
         for path, models in subagent_models
     }
-    result_links = agent_result_links(main_path, calls, set(transcripts_by_id))
+    links = agent_result_links(main_path, calls, set(transcripts_by_id))
 
     print(f"Project: {args.project.resolve()}")
     print(f"Session: {main_path.stem}")
+    if since:
+        print(f"Since: {since.isoformat()}")
     print(f"Main: {format_models(main_models)}")
     print("Agent calls:")
     if calls:
         for call in calls:
             override = call["model_override"] or "<frontmatter>"
-            transcript_id = result_links.get(call["id"])
+            transcript_id = links.get(call["id"])
             if transcript_id:
                 transcript_path, actual_models = transcripts_by_id[transcript_id]
                 actual = f"{transcript_path.name}: {format_models(actual_models)}"
             else:
                 actual = "unlinked"
             print(
-                f"  - {call['type']} | model={override} | "
-                f"actual={actual} | {call['description']} | {call['timestamp']}"
+                f"  - {call['type']} | model={override} | actual={actual} | "
+                f"{call['description']} | {call['timestamp']}"
             )
     else:
         print("  - none")
 
-    print("Subagent transcripts:")
+    print("Delegated transcripts, including workflows:")
     if subagent_models:
+        base = main_path.with_suffix("") / "subagents"
         for path, models in subagent_models:
-            print(f"  - {path.name}: {format_models(models)}")
+            print(f"  - {path.relative_to(base)}: {format_models(models)}")
     else:
         print("  - none")
 
-    has_main = args.main_model in main_models
-    has_verified_collector = any(
-        call["type"] == "data-collector"
-        and call["id"] in result_links
-        and args.collector_model
-        in transcripts_by_id[result_links[call["id"]]][1]
-        for call in calls
+    expected_by_agent = {
+        "data-collector": args.collector_model,
+        "data-analyst": args.analyst_model,
+        "research-worker": args.worker_model,
+    }
+    routed_context_found = any(
+        model_matches(models, selector)
+        for _, models in subagent_models
+        for selector in expected_by_agent.values()
     )
-    passed = has_main and has_verified_collector
+    mismatches: list[str] = []
+    for call in calls:
+        selector = expected_by_agent.get(call["type"])
+        if selector is None:
+            continue
+        transcript_id = links.get(call["id"])
+        if transcript_id is None:
+            mismatches.append(f"{call['type']} call could not be linked to a transcript")
+            continue
+        _, models = transcripts_by_id[transcript_id]
+        if not model_matches(models, selector):
+            mismatches.append(
+                f"{call['type']} expected {selector}, got {format_models(models)}"
+            )
+
+    delegated_main = [
+        path
+        for path, models in subagent_models
+        if model_matches(models, args.main_model)
+    ]
+    has_main = model_matches(main_models, args.main_model)
+    passed = (
+        has_main
+        and routed_context_found
+        and not mismatches
+        and not delegated_main
+    )
 
     print()
+    if mismatches:
+        for mismatch in mismatches:
+            print(f"MISMATCH: {mismatch}")
+    if delegated_main:
+        print("DELEGATED MAIN-MODEL CONTEXTS:")
+        for path in delegated_main:
+            print(f"  - {path}")
+    if not routed_context_found:
+        print("NO ROUTED CONTEXT: no configured Opus or Sonnet agent ran in this range.")
     print(
-        "PASS: reasoning and evidence collection used the configured model split."
+        "PASS: delegated work used configured non-main models without Fable workers."
         if passed
-        else "NOT VERIFIED: the expected model split was not found in this session."
+        else "NOT VERIFIED: routing was absent, mismatched, or delegated work used Fable."
     )
     return 0 if passed else 2
 

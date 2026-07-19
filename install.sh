@@ -2,15 +2,9 @@
 set -euo pipefail
 
 repo_root="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-claude_home="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
+claude_home="${CLAUDE_HOME:-${CLAUDE_CONFIG_DIR:-${HOME}/.claude}}"
 collector_model="claude-opus-4-8"
 dry_run=0
-
-usage() {
-  cat <<'EOF'
-Usage: ./install.sh [--claude-home PATH] [--collector-model MODEL] [--dry-run]
-EOF
-}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -27,19 +21,18 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -h|--help)
-      usage
+      echo "Usage: ./install.sh [--claude-home PATH] [--collector-model MODEL] [--dry-run]"
       exit 0
       ;;
     *)
       echo "Unknown argument: $1" >&2
-      usage >&2
       exit 2
       ;;
   esac
 done
 
-if [[ ! "$collector_model" =~ ^[A-Za-z0-9._:/\-\[\]]+$ ]]; then
-  echo "Unsafe collector model value: $collector_model" >&2
+if [[ ! "$collector_model" =~ ^[[:alnum:]_.:/-]+(\[[[:alnum:]]+\])?$ ]]; then
+  echo "Collector model contains unsupported characters: $collector_model" >&2
   exit 2
 fi
 
@@ -48,17 +41,16 @@ skill_source="$repo_root/.claude/skills/collect-data/SKILL.md"
 policy_source="$repo_root/templates/research-model-routing.md"
 agent_target="$claude_home/agents/data-collector.md"
 skill_target="$claude_home/skills/collect-data/SKILL.md"
-memory_target="$claude_home/CLAUDE.md"
+policy_target="$claude_home/CLAUDE.md"
 
 for source in "$agent_source" "$skill_source" "$policy_source"; do
   [[ -f "$source" ]] || { echo "Missing package file: $source" >&2; exit 1; }
 done
 
-if [[ $dry_run -eq 1 ]]; then
-  echo "[dry-run] install agent -> $agent_target"
-  echo "[dry-run] install skill -> $skill_target"
-  echo "[dry-run] merge routing policy -> $memory_target"
-  echo "[dry-run] collector model: $collector_model"
+if [[ "$dry_run" -eq 1 ]]; then
+  echo "[dry-run] install $agent_target"
+  echo "[dry-run] install $skill_target"
+  echo "[dry-run] merge policy into $policy_target"
   exit 0
 fi
 
@@ -67,51 +59,59 @@ trap 'rm -rf "$temp_dir"' EXIT
 timestamp="$(date +%Y%m%d-%H%M%S)"
 backup_root="$claude_home/backups/optimize-claude-model-research/$timestamp"
 
-sed "s|^model:.*$|model: $collector_model|" "$agent_source" > "$temp_dir/data-collector.md"
-sed "s|^model:.*$|model: $collector_model|" "$skill_source" > "$temp_dir/SKILL.md"
+sed "s|^model:.*|model: $collector_model|" "$agent_source" > "$temp_dir/data-collector.md"
+sed "s|^model:.*|model: $collector_model|" "$skill_source" > "$temp_dir/SKILL.md"
 sed "s|{{COLLECTOR_MODEL}}|$collector_model|g" "$policy_source" > "$temp_dir/policy.md"
 
-backup_target() {
-  local target="$1"
-  [[ -f "$target" ]] || return 0
-  local relative="${target#"$claude_home"/}"
-  local backup="$backup_root/$relative"
-  mkdir -p "$(dirname "$backup")"
-  cp "$target" "$backup"
-}
-
-backup_target "$agent_target"
-backup_target "$skill_target"
-backup_target "$memory_target"
-
-mkdir -p "$(dirname "$agent_target")" "$(dirname "$skill_target")"
-cp "$temp_dir/data-collector.md" "$agent_target"
-cp "$temp_dir/SKILL.md" "$skill_target"
-
-begin_marker='<!-- BEGIN optimize-claude-model-research -->'
-end_marker='<!-- END optimize-claude-model-research -->'
-if [[ -f "$memory_target" ]]; then
+begin_marker="<!-- BEGIN optimize-claude-model-research -->"
+end_marker="<!-- END optimize-claude-model-research -->"
+if [[ -f "$policy_target" ]]; then
   awk -v begin="$begin_marker" -v end="$end_marker" '
-    $0 == begin { skipping = 1; next }
-    $0 == end { skipping = 0; next }
-    !skipping { print }
-  ' "$memory_target" > "$temp_dir/memory-without-router.md"
+    {
+      comparable=$0
+      sub(/\r$/, "", comparable)
+    }
+    comparable == begin { skipping=1; next }
+    comparable == end { skipping=0; next }
+    !skipping && $0 ~ /^[[:space:]]*$/ { trailing=trailing $0 ORS; next }
+    !skipping { printf "%s", trailing; trailing=""; print }
+  ' "$policy_target" > "$temp_dir/policy-base.md"
 else
-  : > "$temp_dir/memory-without-router.md"
+  : > "$temp_dir/policy-base.md"
 fi
 
 {
-  sed -e '${/^$/d;}' "$temp_dir/memory-without-router.md"
-  if [[ -s "$temp_dir/memory-without-router.md" ]]; then printf '\n'; fi
+  cat "$temp_dir/policy-base.md"
+  if [[ -s "$temp_dir/policy-base.md" ]]; then printf "\n"; fi
   printf '%s\n' "$begin_marker"
   cat "$temp_dir/policy.md"
   printf '%s\n' "$end_marker"
-} > "$memory_target"
+} > "$temp_dir/CLAUDE.md"
+
+install_file() {
+  local source="$1"
+  local target="$2"
+  if [[ -f "$target" ]] && ! cmp -s "$source" "$target"; then
+    local relative="${target#"$claude_home"/}"
+    local backup_target="$backup_root/$relative"
+    mkdir -p "$(dirname -- "$backup_target")"
+    cp "$target" "$backup_target"
+    echo "Backed up $target"
+  fi
+  mkdir -p "$(dirname -- "$target")"
+  cp "$source" "$target"
+  echo "Installed $target"
+}
+
+install_file "$temp_dir/data-collector.md" "$agent_target"
+install_file "$temp_dir/SKILL.md" "$skill_target"
+install_file "$temp_dir/CLAUDE.md" "$policy_target"
 
 if [[ -n "${CLAUDE_CODE_SUBAGENT_MODEL:-}" && "${CLAUDE_CODE_SUBAGENT_MODEL}" != "inherit" ]]; then
-  echo "Warning: CLAUDE_CODE_SUBAGENT_MODEL=${CLAUDE_CODE_SUBAGENT_MODEL} overrides the configured collector model." >&2
+  echo "WARNING: CLAUDE_CODE_SUBAGENT_MODEL=${CLAUDE_CODE_SUBAGENT_MODEL} overrides the collector model." >&2
 fi
 
-echo "Installed Claude Research Router in $claude_home"
-echo "Collector model: $collector_model"
-echo "Restart Claude Code, then run /doctor, /skills, and /agents."
+echo
+echo "Claude Research Router is installed with collector model: $collector_model"
+echo "Restart Claude Code, then run /doctor, /memory, /skills, and /agents."
+echo "Smoke test: /collect-data Collect two primary sources for a narrow research question."

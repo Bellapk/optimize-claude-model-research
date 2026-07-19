@@ -1,83 +1,128 @@
+<div align="center">
+
 # Claude Research Router
 
-### Keep your strongest Claude model thinking—not searching.
+### Keep your strongest model thinking — not searching.
 
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-6B4FBB)](https://code.claude.com/docs/en/overview)
-[![Zero dependencies](https://img.shields.io/badge/runtime-zero%20dependencies-0E8A16)](#quick-start)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-compatible-6B4FBB)](https://code.claude.com/docs)
+[![Zero runtime dependencies](https://img.shields.io/badge/runtime_dependencies-zero-2E8B57)](#quick-start)
+[![Windows, macOS, Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078D4)](#quick-start)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Claude Research Router gives Claude Code a clean division of labor for serious research:
+**A capability-based model router for serious research in Claude Code.**
 
-- **Fable 5** stays in the main context for research design, logic, methodology, causal reasoning, synthesis, and final judgment.
-- **Opus 4.8** runs in an isolated, low-effort, read-only subagent for web research, literature search, long-document reading, table extraction, metadata checks, and citation collection.
+Use **Fable 5** for research design, methodology, reasoning, synthesis, and final judgment. Route literature search, source discovery, long-document reading, table extraction, metadata checks, and citation collection to a read-only **Opus 4.8** subagent.
 
-The result is a quieter reasoning context, less flagship-model retrieval work, and an evidence packet you can audit before synthesis.
+If this keeps your best model focused on the work that actually needs it, consider giving the project a star.
 
-> If this workflow saves your research context, consider starring the repo—it helps other researchers find it.
+</div>
 
-## Why this exists
+---
 
-A large research prompt quietly mixes two very different jobs:
+## The problem
 
-1. **Thinking:** What is the real question? Which mechanism matters? How should conflicting evidence change the conclusion?
-2. **Collecting:** Search the web, open reports, scan files, extract tables, verify dates, and compile citations.
+A single research request often mixes two very different workloads:
 
-Running both jobs in one flagship-model context is expensive and noisy. Claude Research Router separates them without requiring an external orchestration framework.
+| Workload | What it needs | What goes wrong in one context |
+|---|---|---|
+| Research design and synthesis | Deep reasoning and judgment | The expensive model should spend its budget here |
+| Search, reading, and extraction | Reliable retrieval and provenance | Long tool output pollutes the reasoning context |
+
+Running everything through the flagship model wastes context on search results, report text, file scans, and repetitive metadata checks. Switching the entire session to a cheaper model saves usage, but weakens the part of the workflow where quality matters most.
+
+**Claude Research Router separates the two.**
 
 ```mermaid
 flowchart LR
-    U["Research request"] --> F1["Fable 5<br/>frame the question"]
-    F1 --> B["Self-contained<br/>collection brief"]
-    B --> O["Opus 4.8 data-collector<br/>low effort · read-only · isolated"]
-    O --> E["Evidence packet<br/>sources · values · conflicts · gaps"]
-    E --> F2["Fable 5<br/>reason · synthesize · write"]
+    A["Research request"] --> B["Fable 5 main context"]
+    B -->|"self-contained collection brief"| C["Opus 4.8 data-collector"]
+    C -->|"compact evidence packet"| B
+    B --> D["Reasoning, synthesis, final output"]
+
+    style B fill:#6B4FBB,color:#fff
+    style C fill:#2E8B57,color:#fff
 ```
+
+The collector gets its own context window. The main thread receives structured evidence instead of every search result and document excerpt.
 
 ## What you get
 
-- **Automatic routing policy** for mixed research tasks.
-- **`data-collector` subagent** pinned to `claude-opus-4-8`, low effort, read-only plan mode, and a 12-turn ceiling.
-- **`/collect-data` skill** for deterministic, isolated evidence collection.
-- **Fail-closed guidance:** if the collector model is unavailable, do not silently spend the main reasoning model on retrieval.
-- **Evidence contract:** every run reports sources, dates, units, precise locations, confidence, conflicts, and missing evidence.
-- **Safe, idempotent installers** that preserve existing `CLAUDE.md` content and back up replaced files.
-- **Transcript verifier** that proves which models actually ran from Claude Code's local JSONL metadata.
+- **Automatic research routing** through a concise global `CLAUDE.md` policy.
+- **A dedicated `data-collector` subagent** pinned to `claude-opus-4-8` with `low` effort.
+- **A deterministic `/collect-data` command** for manual evidence collection.
+- **Read-only operation** with file editing, nested agents, and extra Skill loading disabled.
+- **A fixed evidence contract** covering provenance, dates, units, definitions, conflicts, missing evidence, and confidence.
+- **Fail-closed instructions** when the configured collector model is unavailable.
+- **Safe, idempotent installers** that back up conflicting files and preserve existing `CLAUDE.md` content.
+- **A transcript verifier** that proves which models actually ran without printing prompts or responses.
+- **No runtime dependencies** beyond Claude Code and standard PowerShell/Bash. The verifier uses Python's standard library only.
 
-No MCP server. No API proxy. No Python package to install. The router is plain Claude Code configuration.
+## Real-session proof
+
+This configuration was smoke-tested on a live research project. The verifier inspected Claude Code's JSONL metadata:
+
+| Context | Actual model | Assistant messages |
+|---|---:|---:|
+| Main research thread | `claude-fable-5` | 345 |
+| `data-collector` subagent | `claude-opus-4-8` | 38 |
+
+The main transcript recorded:
+
+```text
+AGENT_CALL=data-collector
+MODEL_OVERRIDE=<frontmatter>
+DESCRIPTION=Close three evidence gaps
+```
+
+This proves that routing happened. It is **not** a universal cost-savings benchmark; usage depends on your sources, prompts, plan, and provider.
 
 ## Quick start
 
-Clone the repository:
+### 1. Clone
 
 ```bash
 git clone https://github.com/Bellapk/optimize-claude-model-research.git
 cd optimize-claude-model-research
 ```
 
-### Windows PowerShell
+### 2. Install globally
+
+Windows PowerShell:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-### macOS, Linux, or WSL
+macOS, Linux, or WSL:
 
 ```bash
 chmod +x install.sh
 ./install.sh
 ```
 
-The default collector is `claude-opus-4-8`. To use an alias or another available model:
+The installer adds:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -CollectorModel opus
+```text
+~/.claude/
+├── CLAUDE.md
+├── agents/
+│   └── data-collector.md
+└── skills/
+    └── collect-data/
+        └── SKILL.md
 ```
 
-```bash
-./install.sh --collector-model opus
+Existing conflicting files are backed up under:
+
+```text
+~/.claude/backups/optimize-claude-model-research/<timestamp>/
 ```
 
-Restart Claude Code after installation, select Fable for the main research session, and check:
+The installer does not change your default session model or `settings.json`.
+
+### 3. Restart and check
+
+Restart Claude Code, then run:
 
 ```text
 /doctor
@@ -88,142 +133,196 @@ Restart Claude Code after installation, select Fable for the main research sessi
 
 Expected results:
 
-- `/memory` lists the global research routing policy.
-- `/skills` lists `collect-data` with a **user-only** badge. That is intentional: automatic routing happens through the agent, while the slash command remains deterministic.
-- `/agents` lists `data-collector` with the configured collector model and low effort.
+- `/memory` lists the user-level `CLAUDE.md` policy.
+- `/skills` lists `collect-data` with a **user-only** badge. That is intentional.
+- `/agents` lists `data-collector` with Opus 4.8, low effort, plan permission mode, and a 12-turn limit.
+- `/doctor` reports no schema or configuration errors.
 
 ## Use it
 
-### Force a collection run
+### Deterministic collection
 
 ```text
-/collect-data Collect primary USDA, Census, and exchange evidence needed to evaluate U.S. soybean basis since 2022. Record publication dates, units, revision history, exact URLs, and conflicts. Do not produce the final interpretation.
+/collect-data Collect USDA, CONAB, NOAA, and CME evidence needed to evaluate
+Brazilian soybean production revisions and US soybean basis from 2022-present.
+Record publication dates, units, revision history, exact URLs, and conflicts.
 ```
 
-You can also guarantee the agent selection with:
+The command always runs in an isolated collector context.
+
+### Guaranteed agent invocation
+
+Type `@` and select `data-collector (agent)`, or use:
 
 ```text
-@"data-collector (agent)" Collect and verify the evidence required for...
+@agent-data-collector Collect and verify the primary sources for this claim.
 ```
 
-### Let Claude route a mixed task
+### Automatic routing
+
+Give the main Fable session a mixed research task:
 
 ```text
-Develop a research framework for forecasting U.S. soybean FOB basis.
-Delegate source collection and dataset verification to data-collector.
-Use the main model only for methodology, causal reasoning, and synthesis.
+Develop a framework for forecasting US soybean FOB basis.
+Delegate all source collection and dataset verification to data-collector.
+Use the main context only for research design, methodology, and synthesis.
 ```
 
-The collector returns a compact packet:
+The main thread creates a narrow collection brief, delegates it, and reasons over the returned evidence packet.
+
+## Evidence packet contract
+
+Every collection returns the same structure:
 
 ```text
-Collection status
-Requirement and scope
-Sources examined
-Evidence collected
-Conflicts and limitations
-Missing evidence
-Recommended next collection step
+## Collection status
+## Requirement and scope
+## Sources examined
+## Evidence collected
+## Conflicts and limitations
+## Missing evidence
+## Recommended next collection step
 ```
 
-## Verify the model split
+Each material finding must include its value, unit, applicable period, definition, direct source location, and confidence level. Missing evidence is reported, never invented.
 
-Do not rely on the spinner or the main `/status` display. Inspect the actual transcript metadata:
+## Verify the models that actually ran
+
+UI labels are useful, but transcript metadata is definitive.
+
+Windows:
 
 ```powershell
-py scripts\verify_routing.py --project "D:\path\to\your\research-project"
+py scripts\verify_routing.py --project "D:\path\to\your-research-project"
+```
+
+macOS, Linux, or WSL:
+
+```bash
+python3 scripts/verify_routing.py --project /path/to/your-research-project
+```
+
+Example result:
+
+```text
+Main: claude-fable-5 (345 messages)
+Agent calls:
+  - data-collector | model=<frontmatter> | actual=agent-....jsonl:
+    claude-opus-4-8 (38 messages) | Close three evidence gaps
+Subagent transcripts:
+  - agent-....jsonl: claude-opus-4-8 (38 messages)
+
+PASS: reasoning and evidence collection used the configured model split.
+```
+
+The verifier reads model metadata, agent type, description, timestamps, and the Agent result ID only. It never prints prompts, collected evidence, or final responses. A run passes only when the `data-collector` call links to a transcript that actually used the expected collector model.
+
+## Customize the collector model
+
+Opus 4.8 is the default. You can install with another full model ID or a Claude Code model alias:
+
+Windows:
+
+```powershell
+.\install.ps1 -CollectorModel opus
+```
+
+macOS, Linux, or WSL:
+
+```bash
+./install.sh --collector-model opus
+```
+
+To preview installation without writing files:
+
+```powershell
+.\install.ps1 -DryRun
 ```
 
 ```bash
-python3 scripts/verify_routing.py --project /path/to/your/research-project
+./install.sh --dry-run
 ```
 
-A successful check prints:
+The `CLAUDE_CODE_SUBAGENT_MODEL` environment variable has higher priority than the agent's frontmatter. The installers warn when they detect a conflicting value.
 
-```text
-PASS: claude-fable-5 handled the main session and claude-opus-4-8 handled data collection.
-```
-
-In a real end-to-end test of this configuration, the verifier reported **327 Fable 5 main-session messages** and **38 Opus 4.8 collector messages**. That proves routing worked; it is not a universal cost-savings benchmark.
-
-## Why three components?
+## Why all three pieces are necessary
 
 | Component | Responsibility |
 |---|---|
-| Global routing policy | Tells the main model which work to keep and which work to delegate |
+| `CLAUDE.md` policy | Teaches the main model when to delegate and prevents duplicate searches |
 | `data-collector` agent | Controls model, effort, permissions, turn limit, and evidence format |
-| `/collect-data` skill | Provides a deterministic manual entry point in an isolated context |
+| `/collect-data` Skill | Provides a predictable manual entry point with isolated context |
 
-A Skill alone is not a reliable automatic router. An Agent alone does not give you a convenient slash command. The policy, agent, and skill work together.
+A Skill alone is not a reliable automatic router. An agent alone does not define how the main research process should divide mixed tasks. The policy, agent, and Skill form one small routing layer.
 
-## Safety and cost controls
+### Why not just use `opusplan`?
 
-- `permissionMode: plan` keeps the collector read-only under normal permission settings.
-- `Write`, `Edit`, `NotebookEdit`, nested `Agent`, and additional `Skill` calls are denied.
-- `maxTurns: 12` bounds a single collection run.
-- Only one collector should run at a time unless you explicitly choose speed over usage.
-- Existing global configuration files are backed up under `~/.claude/backups/optimize-claude-model-research/`.
-- The installer never changes your default main model or `settings.json`.
+`opusplan` switches models by Claude Code mode: Opus while planning, then Sonnet during execution. This project routes by **research capability** instead. Evidence collection gets an isolated, read-only context and a structured return contract, while the Fable thread keeps responsibility for reasoning and synthesis. The two approaches solve different problems.
 
-Check `CLAUDE_CODE_SUBAGENT_MODEL`: when set to a model other than `inherit`, it overrides the agent's frontmatter model.
+## Safety and usage controls
 
-## What this does not promise
+- The collector runs with `permissionMode: plan`.
+- `Write`, `Edit`, `NotebookEdit`, `Agent`, and `Skill` are denied.
+- Collection stops after 12 agentic turns.
+- One collector runs at a time by default; parallel collectors multiply token usage.
+- The main context does not repeat searches already represented in the evidence packet.
+- The main session model remains your choice; select Fable 5 before starting the research task.
 
-- **Automatic delegation is behavioral, not a billing firewall.** Use `/collect-data` or an agent mention when routing must be deterministic.
-- **Model availability depends on your Claude plan and provider.** Use `opus` when the exact model ID is unavailable.
-- **Savings vary by workflow.** Measure with `/usage` and the transcript verifier instead of trusting a headline percentage.
-- **Parent permission modes can take precedence.** Review your Claude Code permission configuration before handling sensitive repositories.
+Claude Code permission modes can be affected by a parent session running with elevated permission settings. Review your own permission configuration before using any agent on sensitive repositories.
 
-## Remove it
+## Compatibility
 
-Remove these two installed files:
+Use Claude Code **v2.1.170 or newer**. Fable 5 requires v2.1.170, while Opus 4.8 requires v2.1.154. Run `claude update` before installation if either model is missing from your picker.
 
-```text
-~/.claude/agents/data-collector.md
-~/.claude/skills/collect-data/SKILL.md
-```
+The project relies on current Claude Code support for:
 
-Then delete the bounded block between these markers in `~/.claude/CLAUDE.md`:
+- custom [subagents](https://code.claude.com/docs/en/sub-agents),
+- [Skills](https://code.claude.com/docs/en/slash-commands) with `context: fork`,
+- per-agent and per-Skill [model and effort configuration](https://code.claude.com/docs/en/model-config).
 
-```text
-<!-- BEGIN optimize-claude-model-research -->
-<!-- END optimize-claude-model-research -->
-```
+Model availability depends on your Claude plan, organization allowlist, API provider, and Claude Code version.
 
-## Project structure
+## Repository layout
 
 ```text
 .
 ├── .claude/
 │   ├── agents/data-collector.md
 │   └── skills/collect-data/SKILL.md
-├── scripts/verify_routing.py
 ├── templates/research-model-routing.md
+├── scripts/verify_routing.py
 ├── tests/test_package.py
 ├── install.ps1
-└── install.sh
+├── install.sh
+└── LICENSE
 ```
 
-## Contributing
-
-Ideas and pull requests are welcome, especially for:
-
-- a Haiku source-scout tier for mechanical first-pass retrieval;
-- provider-specific model presets for Bedrock, Vertex, and Foundry;
-- usage dashboards built from transcript metadata;
-- additional evidence-packet schemas for scientific and policy research.
-
-Run the zero-dependency test suite before opening a PR:
+## Run the package tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-## References
+The tests validate model pinning, effort, permission mode, turn limits, denied tools, the evidence packet schema, the forked Skill configuration, and installer presence.
 
-- [Claude Code custom subagents](https://code.claude.com/docs/en/sub-agents)
-- [Claude Code skills](https://code.claude.com/docs/en/slash-commands)
-- [Claude Code model configuration](https://code.claude.com/docs/en/model-config)
-- [Claude Code cost management](https://code.claude.com/docs/en/costs)
+## Roadmap
 
-MIT licensed. Built for researchers who want the best model on the hardest part of the work.
+- [ ] Optional Haiku source-scout tier for mechanical searches
+- [ ] Provider presets for Anthropic API, Bedrock, Vertex AI, and Foundry
+- [ ] Session-level usage summaries by model
+- [ ] Domain evidence profiles for academic, policy, financial, and commodity research
+- [ ] Reusable evaluation prompts for routing quality
+
+Ideas and pull requests are welcome. If you test the router on a real workflow, open an issue with the task shape, provider, model split, and what improved or failed. Please do not include private transcript content.
+
+## GitHub About description
+
+> Route Claude Code research intelligently: Fable 5 for reasoning, Opus 4.8 for evidence collection — with a read-only agent, `/collect-data` Skill, safe installers, and transcript-level proof.
+
+Suggested topics:
+
+`claude-code` · `research` · `model-routing` · `subagents` · `agent-skills` · `llm` · `ai-agents` · `token-optimization` · `prompt-engineering` · `context-engineering`
+
+## License
+
+[MIT](LICENSE) © 2026 Bellapk

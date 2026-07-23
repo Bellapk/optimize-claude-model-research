@@ -11,7 +11,7 @@
 
 **A plan-first, capability-based model router for serious research in Claude Code.**
 
-Keep **Fable 5** focused on research design and judgment. Route source collection and analytical tables to low-effort **Opus 4.8** agents. Route code, figures, document builds, scoped revisions, and mechanical QA to the latest available **Sonnet**.
+Keep **Fable 5** focused on research design and judgment. Route source collection to low-effort **Opus 4.8**, analytical tables to medium-effort **Opus 4.8**, and code, figures, document builds, scoped revisions, and mechanical QA to medium-effort **Sonnet**.
 
 If this keeps your strongest model thinking instead of searching, calculating, and rebuilding charts, consider giving the project a star.
 
@@ -330,6 +330,12 @@ Suggested topics:
 
 `claude-code` · `research` · `model-routing` · `subagents` · `agent-skills` · `llm` · `ai-agents` · `token-optimization` · `context-engineering` · `research-workflow`
 
+## Author
+
+**Kun Peng, Ph.D.** is a researcher and research-workflow builder focused on agricultural markets, quantitative analysis, and practical AI systems for evidence-based decision-making. He develops reproducible workflows that turn complex source material, data, and research questions into clear, decision-ready insights.
+
+[Connect with Kun Peng on LinkedIn](https://www.linkedin.com/in/peng-kun/).
+
 ## License
 
-[MIT](LICENSE) © 2026 Bellapk
+[MIT](LICENSE) © 2026 Kun Peng

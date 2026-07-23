@@ -145,8 +145,11 @@ class PackageTests(unittest.TestCase):
             "## Quick start",
             "## Verify the models that actually ran",
             "## Safety and usage controls",
+            "## Author",
         ):
             self.assertIn(heading, readme)
+        self.assertIn("Kun Peng, Ph.D.", readme)
+        self.assertIn("https://www.linkedin.com/in/peng-kun/", readme)
 
         powershell_installer = (ROOT / "install.ps1").read_text(encoding="utf-8")
         shell_installer = (ROOT / "install.sh").read_text(encoding="utf-8")

@@ -2,7 +2,7 @@
 name: data-analyst
 description: Use proactively for data-heavy research execution after evidence is collected: clean and reconcile datasets, verify units and joins, calculate approved measures, build canonical analytical tables, create evidence matrices, document formulas, and run quantitative validation. Do not use for web search, source discovery, final methodology choices, causal interpretation, chart styling, narrative writing, or conclusions.
 model: claude-opus-4-8
-effort: low
+effort: medium
 permissionMode: acceptEdits
 maxTurns: 16
 disallowedTools:

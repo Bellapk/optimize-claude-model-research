@@ -132,8 +132,9 @@ Restart Claude Code, then run:
 Expected:
 
 - `/agents` lists `data-collector`, `data-analyst`, and `research-worker`.
-- The two data agents show Opus 4.8 and low effort.
-- The worker shows the `sonnet` alias and low effort.
+- The collector shows Opus 4.8 with low effort.
+- The analyst shows Opus 4.8 with medium effort.
+- The worker shows the `sonnet` alias with medium effort.
 - `/skills` lists the five router commands.
 
 ## Recommended Plan-mode workflow
@@ -284,7 +285,7 @@ Claude Code's `opusplan` switches models by interaction mode: Opus in Plan mode 
 - The collector is read-only and cannot edit files or spawn agents.
 - The analyst can create tables but cannot search the web or choose methodology.
 - The worker can edit files but cannot search the web or spawn agents.
-- Each agent has a bounded turn limit and low effort.
+- Each agent has a bounded turn limit. Collection uses low effort; analysis and production use medium effort for more reliable calculations and multi-step deliverables.
 - Missing evidence and unresolved research judgments fail closed.
 - Fable does not repeat completed searches, calculations, edits, builds, or QA loops.
 

@@ -4,7 +4,7 @@ description: Execute a self-contained research production brief with the configu
 argument-hint: "[self-contained execution brief with files, evidence, constraints, and acceptance checks]"
 disable-model-invocation: true
 model: sonnet
-effort: low
+effort: medium
 context: fork
 agent: research-worker
 ---

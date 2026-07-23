@@ -75,7 +75,7 @@ class PackageTests(unittest.TestCase):
         frontmatter = scalar_frontmatter(ANALYST_AGENT)
         self.assertEqual(frontmatter["name"], "data-analyst")
         self.assertEqual(frontmatter["model"], "claude-opus-4-8")
-        self.assertEqual(frontmatter["effort"], "low")
+        self.assertEqual(frontmatter["effort"], "medium")
         self.assertEqual(frontmatter["permissionMode"], "acceptEdits")
         self.assertEqual(frontmatter["maxTurns"], "16")
         text = ANALYST_AGENT.read_text(encoding="utf-8")
@@ -85,6 +85,7 @@ class PackageTests(unittest.TestCase):
 
         skill = scalar_frontmatter(ANALYZE_SKILL)
         self.assertEqual(skill["model"], "claude-opus-4-8")
+        self.assertEqual(skill["effort"], "medium")
         self.assertEqual(skill["context"], "fork")
         self.assertEqual(skill["agent"], "data-analyst")
 
@@ -92,7 +93,7 @@ class PackageTests(unittest.TestCase):
         frontmatter = scalar_frontmatter(WORKER_AGENT)
         self.assertEqual(frontmatter["name"], "research-worker")
         self.assertEqual(frontmatter["model"], "sonnet")
-        self.assertEqual(frontmatter["effort"], "low")
+        self.assertEqual(frontmatter["effort"], "medium")
         self.assertEqual(frontmatter["permissionMode"], "acceptEdits")
         self.assertEqual(frontmatter["maxTurns"], "20")
         text = WORKER_AGENT.read_text(encoding="utf-8")
@@ -101,6 +102,7 @@ class PackageTests(unittest.TestCase):
 
         skill = scalar_frontmatter(EXECUTE_SKILL)
         self.assertEqual(skill["model"], "sonnet")
+        self.assertEqual(skill["effort"], "medium")
         self.assertEqual(skill["context"], "fork")
         self.assertEqual(skill["agent"], "research-worker")
 

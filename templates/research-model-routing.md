@@ -20,7 +20,7 @@ Delegate evidence work to `data-collector` using {{COLLECTOR_MODEL}} with low ef
 - Units, coverage, publication dates, revisions, citations, and provenance checks
 - Any reviewer comment asking for a measure, number, source, verification, or missing evidence
 
-Delegate data analysis to `data-analyst` using {{ANALYST_MODEL}} with low effort:
+Delegate data analysis to `data-analyst` using {{ANALYST_MODEL}} with medium effort:
 
 - Cleaning and reconciling supplied datasets
 - Approved formulas, ratios, bridges, unit conversions, and derived measures
@@ -28,7 +28,7 @@ Delegate data analysis to `data-analyst` using {{ANALYST_MODEL}} with low effort
 - Join, denominator, range, duplicate-key, and reconciliation validation
 - Tables requested by reviewer comments after their evidence and methodology are defined
 
-Delegate production work to `research-worker` using {{WORKER_MODEL}} with low effort:
+Delegate production work to `research-worker` using {{WORKER_MODEL}} with medium effort:
 
 - Repository scans, routine local-file reading, code, and shell commands
 - File edits, charts from canonical tables, figures, logos, document generation, and build tasks

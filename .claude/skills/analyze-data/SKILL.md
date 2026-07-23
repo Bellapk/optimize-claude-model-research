@@ -4,7 +4,7 @@ description: Build auditable research calculations and canonical tables with the
 argument-hint: "[self-contained analytical specification with inputs, formulas, outputs, and checks]"
 disable-model-invocation: true
 model: claude-opus-4-8
-effort: low
+effort: medium
 context: fork
 agent: data-analyst
 ---
